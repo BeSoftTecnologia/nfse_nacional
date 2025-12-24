@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nfse-nacional"
+version = "1.0.0"
+description = "Biblioteca Python para comunicação com o Portal Nacional de NFSe"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "BeSoft Tecnologia", email = "jean@besoft.com.br"}
+]
+keywords = ["nfse", "nota-fiscal", "servico", "portal-nacional"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Office/Business :: Financial :: Accounting",
+]
+
+dependencies = [
+    "lxml>=4.6.0",
+    "requests-pkcs12>=1.27",
+    "cryptography>=3.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+]
+
+[project.urls]
+Homepage = "https://repo.besoft.com.br/BeSoft/nfse_nacional"
+Documentation = "https://repo.besoft.com.br/BeSoft/nfse_nacional"
+Repository = "https://repo.besoft.com.br/BeSoft/nfse_nacional"
+Issues = "https://repo.besoft.com.br/BeSoft/nfse_nacional/issues"
+
+[tool.setuptools]
+packages = ["nfse_nacional"]
+package-dir = { "nfse_nacional" = "." }
+
+[tool.setuptools.package-data]
+"nfse_nacional" = ["*.md", "*.txt"]
