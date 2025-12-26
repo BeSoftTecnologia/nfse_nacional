@@ -30,6 +30,9 @@ setup(
         "requests-pkcs12>=1.27",
         "cryptography>=3.4.0",
     ],
+    # Exclui explicitamente dependências não utilizadas que podem causar conflitos
+    # O google-api-python-client não é usado neste pacote
+    dependency_links=[],
     extras_require={
         "dev": [
             "pytest>=7.0.0",
