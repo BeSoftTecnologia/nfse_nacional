@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -26,9 +26,9 @@ classifiers = [
 ]
 
 dependencies = [
-    "lxml>=4.6.0",
-    "requests-pkcs12>=1.27",
-    "cryptography>=3.4.0",
+    "lxml>=4.6.0,<6.0",
+    "requests-pkcs12>=1.27,<2.0",
+    "cryptography>=3.4.0,<43.0",
 ]
 
 [project.optional-dependencies]

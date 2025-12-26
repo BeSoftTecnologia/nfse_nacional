@@ -87,40 +87,42 @@ Este módulo requer:
 
 ### Problema com google-api-python-client
 
-**IMPORTANTE**: Este pacote **NÃO utiliza** `google-api-python-client`. Se o pip tentar baixar muitas versões desta biblioteca durante a instalação, isso geralmente indica um conflito de dependências transitivas com outros pacotes no seu projeto.
+**IMPORTANTE**: Este pacote **NÃO utiliza** `google-api-python-client`. Se o pip tentar baixar muitas versões desta biblioteca durante a instalação, isso indica um conflito de dependências transitivas.
 
-**Soluções**:
+**SOLUÇÃO RÁPIDA** (recomendado):
 
-1. **Atualizar o pip e setuptools**:
+```bash
+# Instala as dependências diretamente primeiro
+pip install lxml requests-pkcs12 cryptography
+# Instala o pacote sem resolver dependências
+pip install nfse-nacional --no-deps
+# Garante que as dependências estão instaladas
+pip install lxml requests-pkcs12 cryptography
+```
+
+**Outras soluções**:
+
+1. **Limpar cache e atualizar pip**:
    ```bash
+   pip cache purge
    pip install --upgrade pip setuptools wheel
-   ```
-
-2. **Usar um ambiente virtual limpo**:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/Mac
-   # ou
-   venv\Scripts\activate  # Windows
    pip install nfse-nacional
    ```
 
-3. **Instalar com resolução de dependências mais rápida**:
+2. **Usar resolução legada (mais rápida)**:
    ```bash
    pip install --use-deprecated=legacy-resolver nfse-nacional
    ```
-   Ou com a nova resolução (mais lenta mas mais precisa):
+
+3. **Ambiente virtual limpo**:
    ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
    pip install --upgrade pip
    pip install nfse-nacional
    ```
 
-4. **Se o problema persistir**, pode ser que outro pacote no seu projeto esteja causando o conflito. Neste caso, tente instalar as dependências diretamente:
-   ```bash
-   pip install lxml>=4.6.0 requests-pkcs12>=1.27 cryptography>=3.4.0
-   pip install nfse-nacional --no-deps
-   pip install lxml requests-pkcs12 cryptography  # Instala novamente para garantir
-   ```
+Veja `INSTALL_TROUBLESHOOTING.md` para mais detalhes.
 
 ## Notas
 

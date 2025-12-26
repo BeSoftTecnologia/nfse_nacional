@@ -26,13 +26,10 @@ setup(
     package_dir={"nfse_nacional": "."},
     python_requires=">=3.8",
     install_requires=[
-        "lxml>=4.6.0",
-        "requests-pkcs12>=1.27",
-        "cryptography>=3.4.0",
+        "lxml>=4.6.0,<6.0",
+        "requests-pkcs12>=1.27,<2.0",
+        "cryptography>=3.4.0,<43.0",
     ],
-    # Exclui explicitamente dependências não utilizadas que podem causar conflitos
-    # O google-api-python-client não é usado neste pacote
-    dependency_links=[],
     extras_require={
         "dev": [
             "pytest>=7.0.0",
