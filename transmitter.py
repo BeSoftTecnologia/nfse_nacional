@@ -8,12 +8,13 @@ from requests.exceptions import RequestException
 import base64
 import time
 import gzip
+from typing import Optional
 
 URL_PRODUCAO = "https://sefin.nfse.gov.br/SefinNacional/nfse"
 URL_DANFSE = "https://adn.nfse.gov.br/danfse"
 
 
-def baixar_danfse_pdf(chave_acesso: str, pfx_path: str, pfx_password: str, logger=None) -> str | None:
+def baixar_danfse_pdf(chave_acesso: str, pfx_path: str, pfx_password: str, logger=None) -> Optional[str]:
     """
     Faz o download do DANFSe (PDF oficial) do portal ADN.
     

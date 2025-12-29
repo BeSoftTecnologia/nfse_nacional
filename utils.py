@@ -5,6 +5,7 @@ Funções utilitárias para processamento de NFSe no padrão nacional.
 import re
 import gzip
 import base64
+from typing import Optional
 
 
 def sanitize_document(value: str) -> str:
@@ -42,7 +43,7 @@ def to_float(v):
         return None
 
 
-def ctn_to_6digits(cod: str | None) -> str | None:
+def ctn_to_6digits(cod: Optional[str]) -> Optional[str]:
     """
     Converte código de serviço (CTN) para formato de 6 dígitos.
     Aceita formatos como "1.05", "0105", "1.05.01", etc.

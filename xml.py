@@ -4,9 +4,10 @@ Mantém compatibilidade com a interface do nfsepmpf.
 """
 
 from lxml import etree as ET
+from typing import Union
 
 
-def load_fromstring(xml_string: bytes | str):
+def load_fromstring(xml_string: Union[bytes, str]):
     """
     Carrega XML a partir de uma string.
     

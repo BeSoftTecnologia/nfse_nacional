@@ -8,13 +8,14 @@ from lxml import etree as ET
 from cryptography.hazmat.primitives.serialization import pkcs12, Encoding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+from typing import Union
 
 NS_NFSE = "http://www.sped.fazenda.gov.br/nfse"
 NS_DS = "http://www.w3.org/2000/09/xmldsig#"
 
 
 def assinar_xml(
-        xml_input: str | bytes,
+        xml_input: Union[str, bytes],
         pfx_path: str,
         pfx_password: str,
         tag_to_sign: str = "infDPS",

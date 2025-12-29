@@ -6,6 +6,7 @@ from lxml import etree as ET
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from .utils import sanitize_document, to_float
+from typing import Optional
 import re
 
 NS_NFSE = "http://www.sped.fazenda.gov.br/nfse"
@@ -97,7 +98,7 @@ def build_nfse_xml(
     serie_dps: str,
     competencia: str,
     pais_prestacao: str = "BRASIL",
-    data_emissao: str | None = None,
+    data_emissao: Optional[str] = None,
 ) -> str:
     """
     Constrói o XML da DPS (Declaração de Prestação de Serviços) no padrão nacional.
