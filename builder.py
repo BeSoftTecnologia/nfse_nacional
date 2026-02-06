@@ -205,12 +205,13 @@ def build_nfse_xml(
 
         ET.SubElement(toma, "xNome").text = client.get("nome", "")[:115]
 
-        # Validação e hierarquia de endereço
+        # Validação e hierarquia de endereço (como no Emissor_NFS-e)
+        # Se CEP for None ou vazio, ou IBGE inválido, não envia o bloco de endereço
         cliente_cmun_raw = str(client.get("codigoIbge") or "").strip()
-        cliente_cep_raw = sanitize_document(client.get("cep") or "")
+        cliente_cep_raw = (sanitize_document(client.get("cep") or "") or "").strip()
 
         ibge_ok = cliente_cmun_raw.isdigit() and len(cliente_cmun_raw) == 7
-        cep_ok = cliente_cep_raw.isdigit() and len(cliente_cep_raw) == 8
+        cep_ok = bool(cliente_cep_raw) and cliente_cep_raw.isdigit() and len(cliente_cep_raw) == 8
 
         if ibge_ok and cep_ok:
             end = ET.SubElement(toma, "end")
