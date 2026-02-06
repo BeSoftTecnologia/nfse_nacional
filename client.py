@@ -126,6 +126,8 @@ class NFSeThema:
             'valor': to_float(rps_fields.get('nf.total_servicos', 0)) or 0.0,
             'cTribNac': cod_servico_normalizado,
         }
+
+        service['descricao'] = service['descricao'].replace('\r\n', ', ').replace(', ,', ',')
         
         # Alíquota - converte de porcentagem para decimal se necessário
         aliq_raw = rps_fields.get('nf.aliquota', '')
