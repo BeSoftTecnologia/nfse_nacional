@@ -6,6 +6,7 @@ import re
 import gzip
 import base64
 from typing import Optional
+import unicodedata
 
 
 def sanitize_document(value: str) -> str:
@@ -19,6 +20,21 @@ def sanitize_document(value: str) -> str:
         String apenas com dígitos
     """
     return re.sub(r"\D", "", value) if value else value
+
+
+def remove_accents(input_str: str) -> str:
+    """
+    Remove acentuações de uma string.
+    
+    Args:
+        input_str: String com acentuações
+        
+    Returns:
+        String sem acentuações
+    """
+    nfkd_form = unicodedata.normalize('NFKD', input_str)
+    only_ascii = nfkd_form.encode('ASCII', 'ignore')
+    return only_ascii.decode()
 
 
 def to_float(v):
@@ -80,17 +96,18 @@ def ctn_to_6digits(cod: Optional[str]) -> Optional[str]:
     return digits if len(digits) == 6 else None
 
 
-def gerar_dpsXmlGZipB64(xml_string: str) -> str:
+def gerar_dpsXmlGZipB64(xml_input: Union[str, bytes]) -> str:
     """
     Compacta um XML e codifica em Base64 (formato exigido pelo portal nacional).
+    Aceita bytes diretamente para evitar decode após assinatura.
     
     Args:
-        xml_string: XML como string
+        xml_input: XML como string ou bytes (preferir bytes do signer)
         
     Returns:
         String Base64 do XML compactado com GZIP
     """
-    xml_bytes = xml_string.encode("utf-8")
+    xml_bytes = xml_input if isinstance(xml_input, bytes) else xml_input.encode("utf-8")
     compressed_data = gzip.compress(xml_bytes)
     return base64.b64encode(compressed_data).decode("utf-8")
 
