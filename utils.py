@@ -5,7 +5,7 @@ Funções utilitárias para processamento de NFSe no padrão nacional.
 import re
 import gzip
 import base64
-from typing import Optional
+from typing import Optional, Union
 import unicodedata
 
 
