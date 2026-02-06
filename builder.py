@@ -58,14 +58,21 @@ def build_cancelamento_xml(
     else:
         raise ValueError("Documento do emissor inválido para cancelamento")
 
-    # Id no padrão: PRE + chNFSe (50) + 101101 (tipo evento cancelamento) + nPedRegEvento (3)
-    n_ped_reg = str(n_ped_reg).zfill(3)
-    id_evento = f"PRE{chave_acesso_nota}101101{n_ped_reg}"
+    # Limpeza da chave
+    chave_acesso_nota = chave_acesso_nota.strip()
 
-    # Seguindo exatamente o padrão do nfsenacional que funciona
+    # Validação de segurança
+    if len(chave_acesso_nota) != 50:
+        print(f"ALERTA: Chave tem {len(chave_acesso_nota)} digitos. O esperado é 50.")
+
+    # Sequencial de 3 dígitos (usado na TAG, mas NÃO no ID)
+    n_ped_reg = str(n_ped_reg).zfill(3)
+    id_evento = f"PRE{chave_acesso_nota}101101"
+
     dh_evento = datetime.now(ZoneInfo("America/Sao_Paulo")).replace(microsecond=0).isoformat()
 
-    root = ET.Element("pedRegEvento", nsmap={None: NS_NFSE}, versao="1.00")
+    # Mantenha a versão 1.01 (mudança no portal)
+    root = ET.Element("pedRegEvento", nsmap={None: NS_NFSE}, versao="1.01")
     inf = ET.SubElement(root, "infPedReg", Id=id_evento)
 
     ET.SubElement(inf, "tpAmb").text = tp_amb
@@ -74,7 +81,6 @@ def build_cancelamento_xml(
 
     ET.SubElement(inf, autor_tag).text = emitter_doc
     ET.SubElement(inf, "chNFSe").text = chave_acesso_nota
-    ET.SubElement(inf, "nPedRegEvento").text = n_ped_reg
 
     # Parte específica do evento de cancelamento (e101101)
     e101101 = ET.SubElement(inf, "e101101")
