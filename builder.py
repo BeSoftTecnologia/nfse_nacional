@@ -237,6 +237,9 @@ def build_nfse_xml(
     cs = ET.SubElement(serv, "cServ")
     ET.SubElement(cs, "cTribNac").text = str(service["cTribNac"])
     ET.SubElement(cs, "xDescServ").text = service.get("descricao", "")[:1000]
+    c_nbs = service.get("cNBS")
+    if c_nbs:
+        ET.SubElement(cs, "cNBS").text = str(c_nbs).strip()
 
     # --- valores ---
     valores = ET.SubElement(inf, "valores")

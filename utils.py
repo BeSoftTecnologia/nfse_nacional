@@ -96,6 +96,20 @@ def ctn_to_6digits(cod: Optional[str]) -> Optional[str]:
     return digits if len(digits) == 6 else None
 
 
+def normalize_codigo_nbs(cod: Optional[str]) -> Optional[str]:
+    """
+    Normaliza o código NBS (Nomenclatura Brasileira de Serviços) para o layout da DPS.
+    Remove pontuação e caracteres não numéricos (ex.:1.1406.11.00 → 114061100).
+    """
+    if not cod:
+        return None
+    s = str(cod).strip()
+    if " - " in s:
+        s = s.split(" - ", 1)[0].strip()
+    digits = re.sub(r"\D", "", s)
+    return digits or None
+
+
 def gerar_dpsXmlGZipB64(xml_input: Union[str, bytes]) -> str:
     """
     Compacta um XML e codifica em Base64 (formato exigido pelo portal nacional).

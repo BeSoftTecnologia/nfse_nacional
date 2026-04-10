@@ -9,7 +9,14 @@ from lxml import etree as ET
 from .builder import build_nfse_xml, build_cancelamento_xml
 from .signer import assinar_xml
 from .transmitter import enviar_nfse_pkcs12, enviar_cancelamento_pkcs12, consultar_nfse, URL_PRODUCAO
-from .utils import sanitize_document, to_float, gerar_dpsXmlGZipB64, ctn_to_6digits, remove_accents
+from .utils import (
+    sanitize_document,
+    to_float,
+    gerar_dpsXmlGZipB64,
+    ctn_to_6digits,
+    normalize_codigo_nbs,
+    remove_accents,
+)
 
 
 class NFSeThema:
@@ -126,6 +133,10 @@ class NFSeThema:
             'valor': to_float(rps_fields.get('nf.total_servicos', 0)) or 0.0,
             'cTribNac': cod_servico_normalizado,
         }
+
+        codigo_nbs = normalize_codigo_nbs(rps_fields.get('nf.codigo_nbs'))
+        if codigo_nbs:
+            service['cNBS'] = codigo_nbs
 
         service['descricao'] = service['descricao'].replace('\r\n', ', ').replace(', ,', ',')
         
