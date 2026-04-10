@@ -261,8 +261,55 @@ def build_nfse_xml(
             aliq_f /= 100.0
         ET.SubElement(tribMun, "pAliq").text = f"{aliq_f * 100:.2f}"
 
+    def _fmt_pct_field(val) -> str:
+        p = float(str(val).replace("%", "").replace(",", "."))
+        if 0 < p < 1.0:
+            p *= 100.0
+        return f"{p:.2f}"
+
+    fed = service.get("tribFed")
+    if fed:
+        tf = ET.SubElement(trib, "tribFed")
+        pi = fed.get("piscofins")
+        if pi:
+            pc = ET.SubElement(tf, "piscofins")
+            ET.SubElement(pc, "CST").text = str(pi["cst"])
+            cst_pi = str(pi["cst"])
+            if cst_pi not in ("00", "08", "09"):
+                if "vBCPisCofins" in pi:
+                    ET.SubElement(pc, "vBCPisCofins").text = f"{to_float(pi['vBCPisCofins']):.2f}"
+                if "pAliqPis" in pi:
+                    ET.SubElement(pc, "pAliqPis").text = _fmt_pct_field(pi["pAliqPis"])
+                if "pAliqCofins" in pi:
+                    ET.SubElement(pc, "pAliqCofins").text = _fmt_pct_field(pi["pAliqCofins"])
+                if "vPis" in pi:
+                    ET.SubElement(pc, "vPis").text = f"{to_float(pi['vPis']):.2f}"
+                if "vCofins" in pi:
+                    ET.SubElement(pc, "vCofins").text = f"{to_float(pi['vCofins']):.2f}"
+                if "tpRetPisCofins" in pi:
+                    ET.SubElement(pc, "tpRetPisCofins").text = str(pi["tpRetPisCofins"])
+        if "vRetCP" in fed:
+            ET.SubElement(tf, "vRetCP").text = f"{to_float(fed['vRetCP']):.2f}"
+        if "vRetIRRF" in fed:
+            ET.SubElement(tf, "vRetIRRF").text = f"{to_float(fed['vRetIRRF']):.2f}"
+        if "vRetCSLL" in fed:
+            ET.SubElement(tf, "vRetCSLL").text = f"{to_float(fed['vRetCSLL']):.2f}"
+
     totTrib = ET.SubElement(trib, "totTrib")
-    if op_simp == "3":
+    tt = service.get("totTrib") or {}
+    tt_mode = tt.get("mode")
+
+    if tt_mode == "vTotTrib":
+        vg = ET.SubElement(totTrib, "vTotTrib")
+        ET.SubElement(vg, "vTotTribFed").text = f"{float(tt.get('fed', 0.0)):.2f}"
+        ET.SubElement(vg, "vTotTribEst").text = f"{float(tt.get('est', 0.0)):.2f}"
+        ET.SubElement(vg, "vTotTribMun").text = f"{float(tt.get('mun', 0.0)):.2f}"
+    elif tt_mode == "pTotTrib":
+        pg = ET.SubElement(totTrib, "pTotTrib")
+        ET.SubElement(pg, "pTotTribFed").text = _fmt_pct_field(tt.get("fed", 0))
+        ET.SubElement(pg, "pTotTribEst").text = _fmt_pct_field(tt.get("est", 0))
+        ET.SubElement(pg, "pTotTribMun").text = _fmt_pct_field(tt.get("mun", 0))
+    elif op_simp == "3":
         p_sn = service.get("aliquota")
         if p_sn in (None, ""):
             p_sn_val = 0.0

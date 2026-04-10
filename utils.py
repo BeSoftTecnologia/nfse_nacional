@@ -96,6 +96,38 @@ def ctn_to_6digits(cod: Optional[str]) -> Optional[str]:
     return digits if len(digits) == 6 else None
 
 
+def normalize_cst_pis_cofins(raw: Optional[str]) -> Optional[str]:
+    """
+    Extrai o CST PIS/COFINS (2 dígitos: 00–09) do valor informado no payload.
+    Aceita \"01\", \"01 - Operação tributável...\", etc.
+    """
+    if raw is None or raw == "":
+        return None
+    s = str(raw).strip()
+    if " - " in s:
+        s = s.split(" - ", 1)[0].strip()
+    m = re.match(r"^(\d{2})\b", s)
+    if m:
+        return m.group(1)
+    digits = re.sub(r"\D", "", s)
+    if len(digits) >= 2:
+        return digits[:2]
+    return None
+
+
+def normalize_tp_ret_pis_cofins(raw: Optional[str]) -> Optional[str]:
+    """
+    Normaliza tpRetPisCofins (1 dígito: 0–9 conforme NT007 / portal nacional).
+    """
+    if raw is None or raw == "":
+        return None
+    s = str(raw).strip()
+    if s.isdigit() and len(s) == 1 and "0" <= s <= "9":
+        return s
+    m = re.match(r"^(\d)", s)
+    return m.group(1) if m and m.group(1) in "0123456789" else None
+
+
 def normalize_codigo_nbs(cod: Optional[str]) -> Optional[str]:
     """
     Normaliza o código NBS (Nomenclatura Brasileira de Serviços) para o layout da DPS.

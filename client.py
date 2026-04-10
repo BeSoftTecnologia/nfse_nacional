@@ -15,6 +15,8 @@ from .utils import (
     gerar_dpsXmlGZipB64,
     ctn_to_6digits,
     normalize_codigo_nbs,
+    normalize_cst_pis_cofins,
+    normalize_tp_ret_pis_cofins,
     remove_accents,
 )
 
@@ -26,7 +28,14 @@ class NFSeThema:
     mas gera XML no novo padrão usando as funções do backend.
     """
 
-    def __init__(self, pfx_file=None, pfx_passwd=None, target='production', logger=None):
+    def __init__(
+        self,
+        pfx_file=None,
+        pfx_passwd=None,
+        target='production',
+        logger=None,
+        skip_send=False,
+    ):
         """
         Inicializa a classe NFSeThema.
         
@@ -35,6 +44,8 @@ class NFSeThema:
             pfx_passwd: Senha do certificado
             target: 'production' ou 'test' (não usado no novo padrão, mas mantido para compatibilidade)
             logger: Logger opcional para registro de eventos
+            skip_send: Se True, ``send_batch`` apenas assina a DPS e devolve o XML (e o payload base64),
+                sem chamar o portal nacional (útil para testes e validação de leiaute).
         """
         self.pfx_file = pfx_file
         self.pfx_passwd = pfx_passwd
@@ -42,6 +53,7 @@ class NFSeThema:
         self.rps_batch = []
         self.cancel_batch = []
         self.logger = logger
+        self.skip_send = bool(skip_send)
 
     def clear_rps_batch(self):
         """Limpa o lote de RPS."""
@@ -50,6 +62,129 @@ class NFSeThema:
     def clear_cancel_batch(self):
         """Limpa o lote de cancelamentos."""
         self.cancel_batch = []
+
+    def _montar_trib_fed(self, rps_fields, valor_servico: float):
+        """
+        Monta o dicionário opcional tribFed (valores/trib/tribFed) para o XML da DPS.
+        Campos espelham o Anexo I SEFIN ADN (piscofins + vRetCP/vRetIRRF/vRetCSLL).
+        """
+        v_cp = to_float(rps_fields.get("nf.valor_inss"))
+        v_ir = to_float(rps_fields.get("nf.valor_ir"))
+        if v_ir is None:
+            v_ir = to_float(rps_fields.get("nf.valor_IR"))
+        v_csll = to_float(rps_fields.get("nf.v_ret_csll"))
+        if v_csll is None:
+            v_csll = to_float(rps_fields.get("nf.valor_csll"))
+
+        cst = normalize_cst_pis_cofins(rps_fields.get("nf.cst_pis_cofins"))
+        tp_ret = normalize_tp_ret_pis_cofins(rps_fields.get("nf.tp_ret_pis_cofins_csll"))
+
+        v_pis = to_float(rps_fields.get("nf.valor_pis"))
+        v_cofins = to_float(rps_fields.get("nf.valor_cofins"))
+        v_bc = to_float(rps_fields.get("nf.v_bc_pis_cofins"))
+        p_pis = to_float(rps_fields.get("nf.p_aliquota_pis"))
+        p_cofins = to_float(rps_fields.get("nf.p_aliquota_cofins"))
+
+        def _provided(key):
+            return rps_fields.get(key) not in (None, "")
+
+        wants_piscofins = (
+            cst is not None
+            or tp_ret is not None
+            or _provided("nf.valor_pis")
+            or _provided("nf.valor_cofins")
+            or _provided("nf.v_bc_pis_cofins")
+            or _provided("nf.p_aliquota_pis")
+            or _provided("nf.p_aliquota_cofins")
+        )
+        has_ret = any(x is not None for x in (v_cp, v_ir, v_csll))
+
+        if not wants_piscofins and not has_ret:
+            return None
+
+        out = {}
+        if wants_piscofins:
+            use_cst = cst if cst is not None else "01"
+            pi = {"cst": use_cst}
+            if use_cst not in ("00", "08", "09"):
+                if v_bc is not None:
+                    pi["vBCPisCofins"] = v_bc
+                elif (
+                    v_pis not in (None, 0)
+                    or v_cofins not in (None, 0)
+                    or p_pis is not None
+                    or p_cofins is not None
+                ):
+                    pi["vBCPisCofins"] = float(valor_servico or 0.0)
+                if p_pis is not None:
+                    pi["pAliqPis"] = p_pis
+                if p_cofins is not None:
+                    pi["pAliqCofins"] = p_cofins
+                if v_pis is not None:
+                    pi["vPis"] = v_pis
+                if v_cofins is not None:
+                    pi["vCofins"] = v_cofins
+                if tp_ret is not None:
+                    pi["tpRetPisCofins"] = tp_ret
+            out["piscofins"] = pi
+        elif tp_ret is not None:
+            out["piscofins"] = {"cst": cst or "01", "tpRetPisCofins": tp_ret}
+
+        if v_cp is not None:
+            out["vRetCP"] = v_cp
+        if v_ir is not None:
+            out["vRetIRRF"] = v_ir
+        if v_csll is not None:
+            out["vRetCSLL"] = v_csll
+
+        return out or None
+
+    def _montar_tot_trib_aprox(self, rps_fields):
+        """
+        totTrib: apenas UMA alternativa (vTotTrib, pTotTrib, indTotTrib ou pTotTribSN).
+        Prioridade: nf.aprox_tributos_modo explícito > valores monetários > percentuais.
+        """
+        modo = (rps_fields.get("nf.aprox_tributos_modo") or "").strip().lower()
+
+        v_fed = to_float(rps_fields.get("nf.aprox_tributos_valor_federal"))
+        v_est = to_float(rps_fields.get("nf.aprox_tributos_valor_estadual"))
+        v_mun = to_float(rps_fields.get("nf.aprox_tributos_valor_municipal"))
+        if str(rps_fields.get("nf.aprox_tributos_incluir_valor_iss", "")).strip().lower() in (
+            "1",
+            "s",
+            "sim",
+            "true",
+        ):
+            if v_mun is None:
+                v_mun = to_float(rps_fields.get("nf.valor_iss")) or 0.0
+
+        p_fed = to_float(rps_fields.get("nf.aprox_tributos_pct_federal"))
+        p_est = to_float(rps_fields.get("nf.aprox_tributos_pct_estadual"))
+        p_mun = to_float(rps_fields.get("nf.aprox_tributos_pct_municipal"))
+
+        has_v = any(x is not None for x in (v_fed, v_est, v_mun))
+        has_p = any(x is not None for x in (p_fed, p_est, p_mun))
+
+        if modo in ("valor", "valores", "v", "monetario", "monetário"):
+            has_p = False
+        elif modo in ("percentual", "p", "pct", "%"):
+            has_v = False
+
+        if has_v:
+            return {
+                "mode": "vTotTrib",
+                "fed": float(v_fed or 0.0),
+                "est": float(v_est or 0.0),
+                "mun": float(v_mun or 0.0),
+            }
+        if has_p:
+            return {
+                "mode": "pTotTrib",
+                "fed": float(p_fed or 0.0),
+                "est": float(p_est or 0.0),
+                "mun": float(p_mun or 0.0),
+            }
+        return None
 
     def _converter_rps_fields_para_novo_formato(self, rps_fields):
         """
@@ -154,6 +289,10 @@ class NFSeThema:
         iss_retido_antigo = rps_fields.get('nf.iss_retido', '2')
         service['issRetido'] = 'S' if str(iss_retido_antigo).strip() == '1' else 'N'
 
+        # --- Tributação federal (PIS/COFINS/CSLL/CP/IRRF) e totais aproximados ---
+        service['tribFed'] = self._montar_trib_fed(rps_fields, service['valor'])
+        service['totTrib'] = self._montar_tot_trib_aprox(rps_fields)
+
         # --- DPS (número e série) ---
         numero_dps = int(rps_fields.get('rps.numero', 1))
         serie_dps = rps_fields.get('rps.serie', '1')
@@ -241,16 +380,22 @@ class NFSeThema:
         # Retorna como ElementTree para compatibilidade
         return ET.fromstring(xml_dps.encode('utf-8'))
 
-    def send_batch(self, batch_fields=None):
+    def send_batch(self, batch_fields=None, skip_send=None):
         """
         Assina e envia o lote de RPS para o sistema nacional.
         
         Args:
             batch_fields: Dicionário com campos do lote (opcional, mantido para compatibilidade)
+            skip_send: Se True, não envia ao portal: só assina e retorna o XML e o GZip+Base64.
+                Se None, usa ``self.skip_send`` definido no construtor.
             
         Returns:
             tuple: (result, errors) onde result é um dicionário e errors é um dicionário
         """
+        if skip_send is None:
+            skip_send = self.skip_send
+        else:
+            skip_send = bool(skip_send)
         if not self.pfx_file or not os.path.exists(self.pfx_file):
             raise ValueError("Certificado PFX não encontrado ou não especificado")
         
@@ -289,6 +434,29 @@ class NFSeThema:
             
             if self.logger:
                 self.logger.info('[NFSe Nacional] XML assinado com sucesso (tamanho: %d caracteres)' % len(xml_signed))
+            
+            if skip_send:
+                xml_out = (
+                    xml_signed.decode('utf-8')
+                    if isinstance(xml_signed, bytes)
+                    else str(xml_signed)
+                )
+                dps_b64 = gerar_dpsXmlGZipB64(
+                    xml_out.encode('utf-8') if isinstance(xml_out, str) else xml_signed
+                )
+                result['skip_send'] = True
+                result['xml_dps_assinado'] = xml_out
+                result['xml_enviado'] = xml_out
+                result['dps_xml_gzip_b64'] = dps_b64
+                if self.logger:
+                    self.logger.info(
+                        '[NFSe Nacional] skip_send ativo: envio ao portal omitido (apenas assinatura).'
+                    )
+                root = ET.Element('EnviarLoteRpsResposta')
+                ET.SubElement(root, 'Protocolo').text = 'SKIP_SEND'
+                xml_str = ET.tostring(root, encoding='utf-8', xml_declaration=True).decode('utf-8')
+                result['ws.response'] = xml_str
+                return (result, errors)
             
             # Verifica se o XML está no padrão nacional (deve conter <DPS> e namespace)
             if '<DPS' not in xml_signed or 'http://www.sped.fazenda.gov.br/nfse' not in xml_signed:

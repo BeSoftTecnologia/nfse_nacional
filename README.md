@@ -149,7 +149,7 @@ Veja `INSTALL_TROUBLESHOOTING.md` para mais detalhes.
 9. **nf.valor_pis** - Valor do PIS (opcional)
 10. **nf.valor_cofins** - Valor do COFINS (opcional)
 11. **nf.valor_inss** - Valor do INSS (opcional)
-12. **nf.valor_IR** - Valor do IR (opcional)
+12. **nf.valor_ir** - Valor do IR (opcional)
 13. **nf.valor_csll** - Valor do CSLL (opcional)
 14. **nf.valor_iss** - Valor do ISS (opcional)
 15. **nf.valor_outros** - Outras retenções (opcional)
