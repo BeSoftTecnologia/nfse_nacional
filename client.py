@@ -68,13 +68,19 @@ class NFSeThema:
         Monta o dicionário opcional tribFed (valores/trib/tribFed) para o XML da DPS.
         Campos espelham o Anexo I SEFIN ADN (piscofins + vRetCP/vRetIRRF/vRetCSLL).
         """
-        v_cp = to_float(rps_fields.get("nf.valor_inss"))
-        v_ir = to_float(rps_fields.get("nf.valor_ir"))
+        def _ret_xml(v):
+            """Só envia tags de retenção federal se valor > 0 (evita E0700 etc. com 0,00 legado)."""
+            if v is None:
+                return None
+            return v if v > 0 else None
+
+        v_cp = _ret_xml(to_float(rps_fields.get("nf.valor_inss")))
+        v_ir = _ret_xml(to_float(rps_fields.get("nf.valor_ir")))
         if v_ir is None:
-            v_ir = to_float(rps_fields.get("nf.valor_IR"))
-        v_csll = to_float(rps_fields.get("nf.v_ret_csll"))
+            v_ir = _ret_xml(to_float(rps_fields.get("nf.valor_IR")))
+        v_csll = _ret_xml(to_float(rps_fields.get("nf.v_ret_csll")))
         if v_csll is None:
-            v_csll = to_float(rps_fields.get("nf.valor_csll"))
+            v_csll = _ret_xml(to_float(rps_fields.get("nf.valor_csll")))
 
         cst = normalize_cst_pis_cofins(rps_fields.get("nf.cst_pis_cofins"))
         tp_ret = normalize_tp_ret_pis_cofins(rps_fields.get("nf.tp_ret_pis_cofins_csll"))
