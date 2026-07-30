@@ -45,7 +45,7 @@ def build_cancelamento_xml(
         tp_amb: Tipo de ambiente (1=Produção)
         ver_aplic: Versão da aplicação
         n_ped_reg: Número do pedido de registro
-        c_motivo: Código do motivo (2=Erro na emissão)
+        c_motivo: Código do motivo (TSCodJustCanc: 1=Erro na emissão, 2=Serviço não prestado, 9=Outros)
         
     Returns:
         XML como string
@@ -105,6 +105,7 @@ def build_nfse_xml(
     competencia: str,
     pais_prestacao: str = "BRASIL",
     data_emissao: Optional[str] = None,
+    versao: str = "1.00",
 ) -> str:
     """
     Constrói o XML da DPS (Declaração de Prestação de Serviços) no padrão nacional.
@@ -118,6 +119,7 @@ def build_nfse_xml(
         competencia: Competência no formato AAAA-MM-DD
         pais_prestacao: País da prestação (padrão: BRASIL)
         data_emissao: Data de emissão (opcional)
+        versao: Atributo versao da DPS (default '1.00'; use '1.01' com RTC)
         
     Returns:
         XML da DPS como string
@@ -149,8 +151,10 @@ def build_nfse_xml(
     nDPS15 = f"{int(numero_dps):015d}"
     inf_id = f"DPS{cmun_emi}{tpInsc}{nInsc14}{serie5}{nDPS15}"
 
+    dps_versao = str(versao or "1.00").strip() or "1.00"
+
     # --- raiz ---
-    root = ET.Element("DPS", nsmap={None: NS_NFSE}, versao="1.00")
+    root = ET.Element("DPS", nsmap={None: NS_NFSE}, versao=dps_versao)
     inf = ET.SubElement(root, "infDPS", Id=inf_id)
 
     # --- cabeçalho ---
@@ -181,6 +185,9 @@ def build_nfse_xml(
     # --- prestador ---
     prest = ET.SubElement(inf, "prest")
     ET.SubElement(prest, "CNPJ" if tpInsc == "2" else "CPF").text = doc_prest
+    im_prest = str(emitter.get("inscricaoMunicipal") or "").strip()
+    if im_prest:
+        ET.SubElement(prest, "IM").text = im_prest
     if emitter.get("email"):
         ET.SubElement(prest, "email").text = emitter["email"]
 
@@ -236,6 +243,9 @@ def build_nfse_xml(
 
     cs = ET.SubElement(serv, "cServ")
     ET.SubElement(cs, "cTribNac").text = str(service["cTribNac"])
+    c_trib_mun = service.get("cTribMun")
+    if c_trib_mun not in (None, ""):
+        ET.SubElement(cs, "cTribMun").text = str(c_trib_mun).strip()
     ET.SubElement(cs, "xDescServ").text = service.get("descricao", "")[:1000]
     c_nbs = service.get("cNBS")
     if c_nbs:
@@ -320,6 +330,28 @@ def build_nfse_xml(
         ET.SubElement(totTrib, "pTotTribSN").text = f"{p_sn_val:.2f}"
     else:
         ET.SubElement(totTrib, "indTotTrib").text = "0"
+
+    # --- IBSCBS (RTC / layout 1.01), só se o consumidor enviou cIndOp ---
+    # Sem nf.rtc.* o XML permanece legado (sem este grupo).
+    # indFinal opcional; indDest default 0; valores/gIBSCBS só com CST+cClassTrib.
+    rtc = service.get("rtc")
+    if rtc and rtc.get("cIndOp") not in (None, ""):
+        ibscbs = ET.SubElement(inf, "IBSCBS")
+        ET.SubElement(ibscbs, "finNFSe").text = str(rtc.get("finNFSe") or "0")
+        ind_final = rtc.get("indFinal")
+        if ind_final not in (None, ""):
+            ET.SubElement(ibscbs, "indFinal").text = str(ind_final).strip()
+        ET.SubElement(ibscbs, "cIndOp").text = str(rtc["cIndOp"]).strip()
+        ET.SubElement(ibscbs, "indDest").text = str(rtc.get("indDest") or "0").strip()
+
+        cst = rtc.get("CST")
+        c_class = rtc.get("cClassTrib")
+        if cst not in (None, "") and c_class not in (None, ""):
+            valores_rtc = ET.SubElement(ibscbs, "valores")
+            trib_rtc = ET.SubElement(valores_rtc, "trib")
+            g_ibs = ET.SubElement(trib_rtc, "gIBSCBS")
+            ET.SubElement(g_ibs, "CST").text = str(cst).strip()
+            ET.SubElement(g_ibs, "cClassTrib").text = str(c_class).strip()
 
     return ET.tostring(root, pretty_print=True, encoding="utf-8", xml_declaration=True).decode("utf-8")
 
