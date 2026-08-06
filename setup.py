@@ -29,6 +29,7 @@ setup(
         "lxml>=4.6.0,<6.0",
         "requests-pkcs12>=1.27,<2.0",
         "cryptography>=3.4.0,<43.0",
+        "brazilfiscalreport[danfse]>=1.0.0,<2.0",
     ],
     extras_require={
         "dev": [

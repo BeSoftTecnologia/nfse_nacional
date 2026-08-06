@@ -37,7 +37,7 @@ from nfse.nfse_nacional.client import NFSeThema
 A **chave de acesso** é essencial para:
 - Consultar uma NFSe
 - Cancelar uma NFSe
-- Baixar o DANFSe (PDF)
+- Gerar o DANFSe (PDF) localmente a partir do XML consultado no Portal (a API ADN de download foi descontinuada — NT 008/2026)
 
 **Armazenamento**: A chave de acesso é armazenada no campo `protocolo_lote` do modelo `NFSe` para compatibilidade com o banco existente. Este campo agora armazena a chave de acesso, não mais um protocolo numérico.
 
