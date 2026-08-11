@@ -264,6 +264,13 @@ class NFSeThema:
                         if rps_fields.get('nf.tomador.uf'):
                             client['uf'] = rps_fields.get('nf.tomador.uf', '')[:2]
 
+            email_toma = (rps_fields.get('nf.tomador.contato.email') or '').strip()
+            if email_toma:
+                client['email'] = email_toma.lower()
+            fone_toma = sanitize_document(rps_fields.get('nf.tomador.contato.telefone', '') or '')
+            if fone_toma:
+                client['fone'] = fone_toma
+
         # --- Serviço ---
         # Normaliza código de serviço para 6 dígitos (padrão nacional)
         cod_servico_raw = rps_fields.get('nf.codigo_servico', '')

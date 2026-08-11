@@ -230,6 +230,11 @@ def build_nfse_xml(
 
             ET.SubElement(end, "xBairro").text = (client.get("bairro") or "NAO INFORMADO")[:60]
 
+        if client.get("fone"):
+            ET.SubElement(toma, "fone").text = str(client["fone"])[:20]
+        if client.get("email"):
+            ET.SubElement(toma, "email").text = str(client["email"])[:80]
+
     # --- serviço ---
     serv = ET.SubElement(inf, "serv")
     ET.SubElement(ET.SubElement(serv, "locPrest"), "cLocPrestacao").text = cmun_prestacao

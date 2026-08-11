@@ -13,7 +13,7 @@ if readme_file.exists():
 
 setup(
     name="nfse-nacional",
-    version="1.0.0",
+    version="1.0.1",
     description="Biblioteca Python para comunicação com o Portal Nacional de NFSe",
     long_description=long_description,
     long_description_content_type="text/markdown",
