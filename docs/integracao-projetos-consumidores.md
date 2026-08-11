@@ -78,6 +78,31 @@ Use **ou** percentuais **ou** valores em R$ (não misture sem definir modo).
 
 - `nf.valor_iss` **não** gera tag isolada de “valor ISS” na DPS; alíquota e retenção seguem `nf.aliquota` e `nf.iss_retido`. Para aproximação municipal, use os campos de `totTrib` ou o flag com `valor_iss` acima.
 
+### Desdobro municipal (`cTribMun`)
+
+- `nf.codigo_tributacao_municipio` — emitido como `cServ/cTribMun` **somente** se a chave vier preenchida (não vazia).
+- A lib **não** valida, não faz pad e não deriva de `nf.codigo_servico`. O consumidor deve enviar o desdobro (1–3 dígitos) ou omitir a chave.
+
+### Prestador — inscrição municipal
+
+- `nf.prestador.inscricao_municipal` — se preenchida, gera `prest/IM`.
+
+### RTC / IBS-CBS (layout 1.01)
+
+- `NFSeThema(..., dps_versao='1.01')` — atributo `versao` da DPS (default `1.00`).
+- `nf.rtc.ind_op` — se informado, monta `IBSCBS` com `cIndOp`, `finNFSe` default `0` e `indDest` default `0`.
+- Opcionais: `nf.rtc.fin_nfse`, `nf.rtc.ind_final` (sem default), `nf.rtc.ind_dest` (alias `nf.rtc.ind_pessoas`).
+- `nf.rtc.cst` + `nf.rtc.c_class_trib` — se **ambos** informados, monta `valores/trib/gIBSCBS` com `CST` e `cClassTrib` (sem default fiscal).
+- Sem `nf.rtc.ind_op`: **não** cria o grupo IBSCBS.
+- Não emitir `indPessoas` (nome antigo): o schema do Portal rejeita com E1235.
+
+### Cancelamento — `cMotivo`
+
+- `nf.codigo_cancelamento` / `nf.cmotivo` / `codigo_cancelamento` — XSD `TSCodJustCanc`: somente `1`, `2` ou `9`; ausente/inválido → `2`.
+  - `1` – Erro na Emissão
+  - `2` – Serviço não Prestado
+  - `9` – Outros
+
 ## Fluxo sugerido no projeto consumidor
 
 1. Montar `rps_fields` como hoje (prestador, tomador, serviço, RPS, etc.).

@@ -35,6 +35,7 @@ class NFSeThema:
         target='production',
         logger=None,
         skip_send=False,
+        dps_versao='1.00',
     ):
         """
         Inicializa a classe NFSeThema.
@@ -46,6 +47,7 @@ class NFSeThema:
             logger: Logger opcional para registro de eventos
             skip_send: Se True, ``send_batch`` apenas assina a DPS e devolve o XML (e o payload base64),
                 sem chamar o portal nacional (útil para testes e validação de leiaute).
+            dps_versao: Atributo versao da DPS ('1.00' legado; '1.01' com RTC). Default '1.00'.
         """
         self.pfx_file = pfx_file
         self.pfx_passwd = pfx_passwd
@@ -54,6 +56,7 @@ class NFSeThema:
         self.cancel_batch = []
         self.logger = logger
         self.skip_send = bool(skip_send)
+        self.dps_versao = str(dps_versao or '1.00').strip() or '1.00'
 
     def clear_rps_batch(self):
         """Limpa o lote de RPS."""
@@ -286,6 +289,53 @@ class NFSeThema:
         if codigo_nbs:
             service['cNBS'] = codigo_nbs
 
+        c_trib_mun = rps_fields.get('nf.codigo_tributacao_municipio')
+        if c_trib_mun not in (None, ''):
+            c_trib_mun_str = str(c_trib_mun).strip()
+            if c_trib_mun_str:
+                service['cTribMun'] = c_trib_mun_str
+
+        ind_op = rps_fields.get('nf.rtc.ind_op')
+        if ind_op not in (None, ''):
+            ind_op_str = str(ind_op).strip()
+            if ind_op_str:
+                def _rtc_field(key, default='0'):
+                    raw = rps_fields.get(key)
+                    if raw in (None, ''):
+                        return default
+                    return str(raw).strip() or default
+
+                rtc = {
+                    'cIndOp': ind_op_str,
+                    'finNFSe': _rtc_field('nf.rtc.fin_nfse'),
+                    'indDest': '0',
+                }
+
+                ind_dest_raw = rps_fields.get('nf.rtc.ind_dest')
+                if ind_dest_raw in (None, ''):
+                    ind_dest_raw = rps_fields.get('nf.rtc.ind_pessoas')
+                if ind_dest_raw not in (None, ''):
+                    ind_dest_str = str(ind_dest_raw).strip()
+                    if ind_dest_str:
+                        rtc['indDest'] = ind_dest_str
+
+                ind_final = rps_fields.get('nf.rtc.ind_final')
+                if ind_final not in (None, ''):
+                    ind_final_str = str(ind_final).strip()
+                    if ind_final_str:
+                        rtc['indFinal'] = ind_final_str
+
+                cst = rps_fields.get('nf.rtc.cst')
+                c_class = rps_fields.get('nf.rtc.c_class_trib')
+                if cst not in (None, '') and c_class not in (None, ''):
+                    cst_str = str(cst).strip()
+                    c_class_str = str(c_class).strip()
+                    if cst_str and c_class_str:
+                        rtc['CST'] = cst_str
+                        rtc['cClassTrib'] = c_class_str
+
+                service['rtc'] = rtc
+
         service['descricao'] = service['descricao'].replace('\r\n', ', ').replace(', ,', ',')
         
         # Alíquota - converte de porcentagem para decimal se necessário
@@ -361,6 +411,11 @@ class NFSeThema:
         
         # Converte para o novo formato
         dados = self._converter_rps_fields_para_novo_formato(rps_fields)
+
+        # versao DPS: ctor; se houver RTC e ctor ainda for legado, sobe para 1.01
+        dps_versao = self.dps_versao
+        if dados['service'].get('rtc') and dps_versao == '1.00':
+            dps_versao = '1.01'
         
         if self.logger:
             self.logger.info('[NFSe Nacional] Dados convertidos - Prestador: %s, Tomador: %s, Valor: %s' % (
@@ -378,6 +433,7 @@ class NFSeThema:
             serie_dps=dados['serie_dps'],
             competencia=dados['competencia'],
             data_emissao=dados['data_emissao'],
+            versao=dps_versao,
         )
         
         if self.logger:
@@ -773,6 +829,7 @@ class NFSeThema:
                 - 'nf.prestador.documento': CNPJ do prestador (obrigatório)
                 - 'nf.chave_acesso' ou 'chave_acesso': Chave de acesso da nota (obrigatório)
                 - 'nf.justificativa' ou 'justificativa': Justificativa do cancelamento
+                - 'nf.codigo_cancelamento' / 'nf.cmotivo' / 'codigo_cancelamento': cMotivo (1, 2 ou 9; default 2)
                 - 'nf.cancela.id': Chave de acesso alternativa (compatibilidade)
         
         Returns:
@@ -785,6 +842,16 @@ class NFSeThema:
         emitter_cnpj = nf_fields.get('nf.prestador.documento', '')
         chave_acesso = nf_fields.get('nf.chave_acesso') or nf_fields.get('chave_acesso')
         justificativa = nf_fields.get('nf.justificativa') or nf_fields.get('justificativa', 'Erro na emissão')
+
+        c_motivo_raw = (
+            nf_fields.get('nf.codigo_cancelamento')
+            or nf_fields.get('nf.cmotivo')
+            or nf_fields.get('codigo_cancelamento')
+        )
+        c_motivo = str(c_motivo_raw).strip() if c_motivo_raw not in (None, '') else '2'
+        # XSD TSCodJustCanc: somente 1, 2 ou 9
+        if c_motivo not in ('1', '2', '9'):
+            c_motivo = '2'
         
         # Se não tiver chave de acesso, tenta usar protocolo como chave (compatibilidade)
         # No novo padrão, protocolo_lote armazena a chave de acesso
@@ -806,6 +873,7 @@ class NFSeThema:
             emitter_cnpj=emitter_cnpj,
             chave_acesso_nota=chave_acesso,
             justificativa=justificativa,
+            c_motivo=c_motivo,
         )
         
         if self.logger:

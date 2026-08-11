@@ -37,7 +37,7 @@ from nfse.nfse_nacional.client import NFSeThema
 A **chave de acesso** é essencial para:
 - Consultar uma NFSe
 - Cancelar uma NFSe
-- Baixar o DANFSe (PDF)
+- Gerar o DANFSe (PDF) localmente a partir do XML consultado no Portal (a API ADN de download foi descontinuada — NT 008/2026)
 
 **Armazenamento**: A chave de acesso é armazenada no campo `protocolo_lote` do modelo `NFSe` para compatibilidade com o banco existente. Este campo agora armazena a chave de acesso, não mais um protocolo numérico.
 
@@ -69,7 +69,47 @@ Para cancelar uma NFSe, é necessário:
 - `nf.chave_acesso` ou `chave_acesso`: Chave de acesso da nota (obtida de `protocolo_lote`)
 - `nf.justificativa` ou `justificativa`: Justificativa do cancelamento
 
+Opcionais:
+- `nf.codigo_cancelamento` / `nf.cmotivo` / `codigo_cancelamento`: código do motivo (`cMotivo` — XSD `TSCodJustCanc`: **1**, **2** ou **9**). Se ausente ou inválido, mantém default `2` (Serviço não prestado).
+  - `1` – Erro na Emissão
+  - `2` – Serviço não Prestado
+  - `9` – Outros
+
 **Compatibilidade**: O campo `nf.cancela.id` pode ser usado como chave de acesso se `chave_acesso` não for fornecido.
+
+### 4.1. Versão da DPS e campos opcionais (omitir = legado)
+
+Princípio: se o consumidor **não** enviar a chave, o comportamento permanece o atual (sem a tag / default legado).
+
+| Chave / parâmetro | XML | Observação |
+|-------------------|-----|------------|
+| `NFSeThema(..., dps_versao='1.00'\|'1.01')` | atributo `versao` da DPS | Default `1.00`. Com `nf.rtc.ind_op` e default `1.00`, sobe para `1.01`. |
+| `nf.prestador.inscricao_municipal` | `prest/IM` | Só se não vazio |
+| `nf.codigo_tributacao_municipio` | `cServ/cTribMun` | Pass-through (sem pad/validação na lib); omitir se vazio |
+| `nf.rtc.ind_op` | `IBSCBS/cIndOp` | Se informado, monta grupo mínimo IBSCBS |
+| `nf.rtc.fin_nfse` | `IBSCBS/finNFSe` | Default `0` (NFS-e regular) quando só `ind_op` é enviado |
+| `nf.rtc.ind_final` | `IBSCBS/indFinal` | Só se informado; **não** emite default |
+| `nf.rtc.ind_dest` (alias `nf.rtc.ind_pessoas`) | `IBSCBS/indDest` | Default `0` quando há IBSCBS |
+| `nf.rtc.cst` + `nf.rtc.c_class_trib` | `valores/trib/gIBSCBS/CST` + `cClassTrib` | Só se **ambos** informados (sem default fiscal) |
+| `nf.codigo_nbs` | `cServ/cNBS` | Já existia |
+
+Grupo IBSCBS (quando `nf.rtc.ind_op` existir), com CST/`cClassTrib`:
+
+```xml
+<IBSCBS>
+  <finNFSe>0</finNFSe>
+  <cIndOp>...</cIndOp>
+  <indDest>0</indDest>
+  <valores>
+    <trib>
+      <gIBSCBS>
+        <CST>...</CST>
+        <cClassTrib>...</cClassTrib>
+      </gIBSCBS>
+    </trib>
+  </valores>
+</IBSCBS>
+```
 
 ### 5. Mudanças no Código
 
@@ -159,7 +199,6 @@ Veja `INSTALL_TROUBLESHOOTING.md` para mais detalhes.
 19. **nf.desconto_condicionado** - Desconto condicionado (opcional)
 20. **nf.desconto_incondicionado** - Desconto incondicionado (opcional)
 21. **nf.codigo_cnae** - Código CNAE (opcional)
-22. **nf.codigo_tributacao_municipio** - Código de tributação municipal (opcional)
 
 ### Campos do Intermediário
 23. **nf.intermediario.razao_social** - Razão social do intermediário (opcional)
@@ -187,7 +226,7 @@ Veja `INSTALL_TROUBLESHOOTING.md` para mais detalhes.
 
 ### Prestador
 - ✅ nf.prestador.documento → emitter.cnpj/cpf
-- ✅ nf.prestador.inscricao_municipal → emitter.inscricaoMunicipal
+- ✅ nf.prestador.inscricao_municipal → emitter.inscricaoMunicipal → XML `prest/IM` (se preenchida)
 - ✅ nf.codigo_municipio → emitter.codigoIbge
 - ✅ nf.optante_simples → emitter.regimeTributacao (convertido)
 - ✅ nf.regime_especial_tributacao → emitter.regimeTributacao (convertido)
@@ -206,10 +245,13 @@ Veja `INSTALL_TROUBLESHOOTING.md` para mais detalhes.
 
 ### Serviço
 - ✅ nf.codigo_servico → service.cTribNac (normalizado para 6 dígitos)
+- ✅ nf.codigo_tributacao_municipio → service.cTribMun (pass-through; omitir se vazio)
+- ✅ nf.codigo_nbs → service.cNBS
 - ✅ nf.discriminacao → service.descricao
 - ✅ nf.total_servicos → service.valor
 - ✅ nf.aliquota → service.aliquota
 - ✅ nf.iss_retido → service.issRetido (convertido de 1/2 para S/N)
+- ✅ nf.rtc.ind_op → IBSCBS/cIndOp (finNFSe/indDest default 0; CST/cClassTrib se enviados)
 
 ## Observações
 

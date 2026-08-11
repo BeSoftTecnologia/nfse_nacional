@@ -6,58 +6,104 @@ from lxml import etree as ET
 from requests_pkcs12 import post as pkcs12_post, get as pkcs12_get
 from requests.exceptions import RequestException
 import base64
-import time
 import gzip
 from typing import Optional
 
 URL_PRODUCAO = "https://sefin.nfse.gov.br/SefinNacional/nfse"
-URL_DANFSE = "https://adn.nfse.gov.br/danfse"
+
+
+def _extrair_xml_nfse_da_consulta(data: dict, logger=None) -> Optional[str]:
+    """Extrai o XML autorizado da NFS-e a partir da resposta de consultar_nfse."""
+    if not isinstance(data, dict):
+        return None
+
+    gz_b64 = data.get("nfseXmlGZipB64") or data.get("nfseXmlGzipB64")
+    if gz_b64:
+        try:
+            return gzip.decompress(base64.b64decode(gz_b64)).decode("utf-8", errors="replace")
+        except Exception as e:
+            if logger:
+                logger.error('[NFSe Nacional] Erro ao descompactar XML da consulta: %s' % str(e))
+
+    xml_str = data.get("xml") or data.get("body")
+    if not xml_str or not isinstance(xml_str, str):
+        return None
+
+    xml_str = xml_str.strip()
+    if not xml_str:
+        return None
+
+    # Resposta já é o XML da NFSe (ou envelope contendo <NFSe>)
+    try:
+        root = ET.fromstring(xml_str.encode("utf-8"))
+        if root.tag.endswith("NFSe") or root.tag == "NFSe":
+            return xml_str
+        ns = {"ns": root.nsmap.get(None)} if root.nsmap and None in root.nsmap else {}
+        nfse_el = root.find(".//ns:NFSe", ns) if ns else root.find(".//{http://www.sped.fazenda.gov.br/nfse}NFSe")
+        if nfse_el is None:
+            nfse_el = root.find(".//NFSe")
+        if nfse_el is not None:
+            return ET.tostring(nfse_el, encoding="utf-8").decode("utf-8")
+    except Exception as e:
+        if logger:
+            logger.error('[NFSe Nacional] Erro ao parsear XML da consulta: %s' % str(e))
+        return None
+
+    return xml_str
 
 
 def baixar_danfse_pdf(chave_acesso: str, pfx_path: str, pfx_password: str, logger=None) -> Optional[str]:
     """
-    Faz o download do DANFSe (PDF oficial) do portal ADN.
-    
+    Gera o DANFSe (PDF) localmente a partir do XML autorizado da NFS-e.
+
+    Consulta a nota no Portal Nacional pela chave de acesso e renderiza o PDF
+    com brazilfiscalreport (API ADN de download foi descontinuada — NT 008/2026).
+
     Args:
         chave_acesso: Chave de acesso da NFSe
         pfx_path: Caminho para o certificado .pfx
         pfx_password: Senha do certificado
         logger: Logger opcional para registro de eventos
-        
+
     Returns:
         PDF em base64 ou None se não disponível
     """
-    url = f"{URL_DANFSE}/{chave_acesso}"
-    
     if logger:
-        logger.info('[NFSe Nacional] Baixando DANFSe - URL: %s' % url)
+        logger.info('[NFSe Nacional] Gerando DANFSe localmente - Chave: %s' % chave_acesso)
 
     try:
-        resp = pkcs12_get(
-            url,
-            pkcs12_filename=pfx_path,
-            pkcs12_password=pfx_password,
-            timeout=30,
-            verify=True,
-        )
+        data = consultar_nfse(chave_acesso, pfx_path, pfx_password, logger=logger)
+        if not data:
+            if logger:
+                logger.error('[NFSe Nacional] Consulta da NFSe retornou vazio; DANFSe indisponível')
+            return None
+
+        xml_nfse = _extrair_xml_nfse_da_consulta(data, logger=logger)
+        if not xml_nfse:
+            if logger:
+                logger.error('[NFSe Nacional] XML da NFSe não encontrado na consulta; DANFSe indisponível')
+            return None
 
         if logger:
-            logger.info('[NFSe Nacional] Resposta do download do DANFSe - Status HTTP: %s' % resp.status_code)
+            logger.info('[NFSe Nacional] XML obtido (tamanho: %d caracteres); renderizando PDF' % len(xml_nfse))
 
-        if resp.status_code == 200 and resp.headers.get("Content-Type", "").startswith("application/pdf"):
-            pdf_b64 = base64.b64encode(resp.content).decode("ascii")
+        from brazilfiscalreport.danfse import Danfse
+
+        danfse = Danfse(xml=xml_nfse)
+        pdf_bytes = bytes(danfse.output())
+        if not pdf_bytes or not pdf_bytes.startswith(b"%PDF"):
             if logger:
-                logger.info('[NFSe Nacional] DANFSe baixado com sucesso (tamanho base64: %d caracteres)' % len(pdf_b64))
-            return pdf_b64
-        elif logger:
-            logger.error('[NFSe Nacional] DANFSe não disponível - Status: %s, Content-Type: %s' % (
-                resp.status_code,
-                resp.headers.get("Content-Type", "N/A")
-            ))
+                logger.error('[NFSe Nacional] Geração do DANFSe não produziu um PDF válido')
+            return None
+
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("ascii")
+        if logger:
+            logger.info('[NFSe Nacional] DANFSe gerado com sucesso (tamanho base64: %d caracteres)' % len(pdf_b64))
+        return pdf_b64
 
     except Exception as e:
         if logger:
-            logger.error('[NFSe Nacional] Erro ao baixar DANFSe: %s' % str(e))
+            logger.error('[NFSe Nacional] Erro ao gerar DANFSe: %s' % str(e))
 
     return None
 
@@ -174,21 +220,13 @@ def enviar_nfse_pkcs12(dps_b64: str, pfx_path: str, pfx_password: str, logger=No
                 "mensagem_erro": mensagem_erro,
             }
 
-        # Se a nota foi aceita, tenta buscar o DANFSe
+        # Se a nota foi aceita, gera o DANFSe localmente a partir do XML consultado
         if resp.status_code in (200, 201) and chave_acesso:
             if logger:
-                logger.info('[NFSe Nacional] Tentando baixar DANFSe (até 3 tentativas)')
-            # Tenta até 3 vezes com intervalo de 2 segundos
-            max_retries = 3
-            for i in range(max_retries):
-                if logger:
-                    logger.info('[NFSe Nacional] Tentativa %d/%d de baixar DANFSe' % (i + 1, max_retries))
-                pdf_base64 = baixar_danfse_pdf(chave_acesso, pfx_path, pfx_password, logger=logger)
-                if pdf_base64:
-                    if logger:
-                        logger.info('[NFSe Nacional] DANFSe baixado com sucesso na tentativa %d' % (i + 1))
-                    break
-                time.sleep(2)
+                logger.info('[NFSe Nacional] Gerando DANFSe localmente')
+            pdf_base64 = baixar_danfse_pdf(chave_acesso, pfx_path, pfx_password, logger=logger)
+            if pdf_base64 and logger:
+                logger.info('[NFSe Nacional] DANFSe gerado com sucesso')
 
         return {
             "status": resp.status_code,
@@ -212,15 +250,11 @@ def enviar_nfse_pkcs12(dps_b64: str, pfx_path: str, pfx_password: str, logger=No
         if nfse_el is not None:
             xml_nfse = ET.tostring(nfse_el, encoding="utf-8").decode("utf-8")
 
-        # Tenta buscar DANFSe também se tiver chave
+        # Gera DANFSe localmente se tiver chave e ainda não houver PDF
         if chave_acesso and not pdf_base64:
             if logger:
-                logger.info('[NFSe Nacional] Tentando baixar DANFSe via fallback XML')
-            for i in range(3):
-                pdf_base64 = baixar_danfse_pdf(chave_acesso, pfx_path, pfx_password, logger=logger)
-                if pdf_base64:
-                    break
-                time.sleep(2)
+                logger.info('[NFSe Nacional] Gerando DANFSe via fallback XML')
+            pdf_base64 = baixar_danfse_pdf(chave_acesso, pfx_path, pfx_password, logger=logger)
 
     except Exception as e:
         if logger:
